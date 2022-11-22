@@ -1,5 +1,5 @@
-name: pi
-version: 22-2
+name: mbd-rpi-g
+version: 22-5
 summary: Raspberry Pi gadget
 description: |
   Support files for booting Raspberry Pi.
@@ -10,11 +10,18 @@ base: core22
 assumes: [kernel-assets]
 architectures:
   - build-on: [amd64, arm64]
-    run-on: arm64
+    build-for: arm64
 
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
+#  - type: apt
+#    components: [main, universe]
+#    suites: [jammy, jammy-updates]
+#    url: http://ports.ubuntu.com/
+#    formats: [deb]
+#    architectures: [arm64]
+#    key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
 
 confinement: strict
 grade: stable
@@ -30,11 +37,11 @@ parts:
       # but only use the cross-compiling sources when actually cross compiling
       # as otherwise its just safer to use the build environment - it offers
       # much more flexibility.
-      if [ "$SNAPCRAFT_ARCH_TRIPLET" = "x86_64-linux-gnu" ] || [ -z "$SNAPCRAFT_ARCH_TRIPLET" ]; then
+      if [ "$CRAFT_ARCH_TRIPLET" = "x86_64-linux-gnu" ] || [ -z "$CRAFT_ARCH_TRIPLET" ]; then
         OPTIONAL_ARGS="SERIES_HOST=\"focal\" SOURCES_HOST=\"./helpers/cross-sources.list\" SOURCES_D_HOST=\"./helpers\""
       fi
-      make -C $SNAPCRAFT_PART_SRC core \
-        DESTDIR=${SNAPCRAFT_PART_INSTALL} \
+      make -C $CRAFT_PART_SRC core \
+        DESTDIR=${CRAFT_PART_INSTALL} \
         ARCH="$(dpkg-architecture -t $BUILD_ARCH_TRIPLET -q DEB_HOST_ARCH)" \
         ${OPTIONAL_ARGS:-}
     prime:
@@ -57,14 +64,14 @@ parts:
     plugin: nil
     override-build: |
       set -x
-      if [ "$SNAPCRAFT_ARCH_TRIPLET" = "x86_64-linux-gnu" ] || [ -z "$SNAPCRAFT_ARCH_TRIPLET" ]; then
+      if [ "$CRAFT_ARCH_TRIPLET" = "x86_64-linux-gnu" ] || [ -z "$CRAFT_ARCH_TRIPLET" ]; then
         # manually set since new snapcraft doesn't like --target-arch when 
         # building with lxd/multipass
         BUILD_ARCH_TRIPLET=aarch64-linux-gnu
       else
-        BUILD_ARCH_TRIPLET=$SNAPCRAFT_ARCH_TRIPLET
+        BUILD_ARCH_TRIPLET=$CRAFT_ARCH_TRIPLET
       fi
-      export TREE="${SNAPCRAFT_STAGE:-.}/psplash"
+      export TREE="${CRAFT_STAGE:-.}/psplash"
       . ${TREE}/config
       if ! $(echo "$FONT" | grep -q ^/); then
         FONT="${TREE}/${FONT}"
@@ -77,7 +84,7 @@ parts:
       ./make-image-header.sh "$SPLASH" CORE psplash-core
       aclocal
       autoreconf --install
-      if ! dpkg-architecture -t "${SNAPCRAFT_ARCH_TRIPLET}" -e \
+      if ! dpkg-architecture -t "${CRAFT_ARCH_TRIPLET}" -e \
           $(dpkg-architecture -q DEB_BUILD_ARCH)
       then
         export CROSS_COMPILE=$(dpkg-architecture \
@@ -88,13 +95,13 @@ parts:
       ./configure --build=$(dpkg-architecture -q DEB_BUILD_GNU_TYPE) \
         --host=${BUILD_ARCH_TRIPLET} CC=${CROSS_COMPILE}gcc || cat config.log
       ARCH=$(dpkg-architecture -t "${BUILD_ARCH_TRIPLET}" -q DEB_HOST_ARCH) make
-      rm -rf $SNAPCRAFT_PART_INSTALL/usr
+      rm -rf $CRAFT_PART_INSTALL/usr
       cp -a $TREE/initrd .
       mkdir -p initrd/bin
       cp psplash initrd/bin
-      mkdir -p $SNAPCRAFT_PART_INSTALL/boot-assets
+      mkdir -p $CRAFT_PART_INSTALL/boot-assets
       cd initrd && find . | cpio --quiet -o -H newc | lz4 -9 -l >> \
-        "${SNAPCRAFT_PART_INSTALL}/boot-assets/psplash.img"
+        "${CRAFT_PART_INSTALL}/boot-assets/psplash.img"
     build-packages:
       - libgdk-pixbuf2.0-dev
       - automake
@@ -107,7 +114,7 @@ parts:
       - findutils
       - liblz4-tool
       - libc-dev
-      - try:
+      - on amd64:
           - gcc-aarch64-linux-gnu:amd64
           - libc6-dev-arm64-cross:amd64
 
