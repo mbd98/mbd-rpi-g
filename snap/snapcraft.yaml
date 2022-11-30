@@ -1,5 +1,5 @@
 name: mbd-rpi-g
-version: 22-5
+version: 22-6
 summary: Raspberry Pi gadget
 description: |
   Support files for booting Raspberry Pi.
@@ -26,6 +26,39 @@ package-repositories:
 confinement: strict
 grade: stable
 parts:
+  prepare-device:
+    plugin: nil
+    source: prepare-device
+    override-build: |
+      echo "Creating prepare-device hook..."
+      source $CRAFT_PART_SRC/apikey
+      if [ -z "${MODEL_APIKEY}" -o "${MODEL_APIKEY}" = "changeme" ]; then
+        echo "Missing MODEL_APIKEY environment variable, see prepare-device/apikey"
+        exit 1
+      fi
+      mkdir -p $CRAFT_PART_INSTALL/snap/hooks
+      
+      cat << EOF > $CRAFT_PART_INSTALL/snap/hooks/prepare-device
+      #!/bin/sh -eux
+
+      bytes() {
+        head -c\$1 < /dev/random | xxd -p
+      }
+
+      uuid() {
+        echo "\$(bytes 4)-\$(bytes 2)-\$(bytes 2)-\$(bytes 2)-\$(bytes 6)"
+      }
+
+      mkdir -p \$SNAP_COMMON
+      exec >> \$SNAP_COMMON/prepare-device-hook.log 2>&1
+      serial=\$(uuid)
+      echo "serial: \${serial}"
+      snapctl set registration.proposed-serial="\$(uuid)"
+      snapctl set device-service.url="https://serial-vault.iotdevice.io/v1/"
+      snapctl set device-service.headers="{\"api-key\": \"$MODEL_APIKEY\"}"
+      EOF
+
+      chmod +x $CRAFT_PART_INSTALL/snap/hooks/prepare-device
   gadget:
     plugin: nil
     source: .
