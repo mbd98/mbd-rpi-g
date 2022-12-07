@@ -37,16 +37,18 @@ parts:
         exit 1
       fi
       mkdir -p $CRAFT_PART_INSTALL/snap/hooks
-      
+
       cat << EOF > $CRAFT_PART_INSTALL/snap/hooks/prepare-device
       #!/bin/sh -eux
 
       bytes() {
-        head -c\$1 < /dev/random | xxd -p
+        head -c\$1 < /dev/random | od -vt x1 | cut -c9- | tr -d ' \n'
       }
 
       uuid() {
+        set +x
         echo "\$(bytes 4)-\$(bytes 2)-\$(bytes 2)-\$(bytes 2)-\$(bytes 6)"
+        set -x
       }
 
       mkdir -p \$SNAP_COMMON
